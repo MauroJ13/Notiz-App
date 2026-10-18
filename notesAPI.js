@@ -1,38 +1,77 @@
 const LOCAL_STORAGE_KEY = "notizapp-notizen";
 
 function getNotes() {
-  return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || [];
+  try {
+    const notes = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || [];
+    // ältere Notizen haben noch kein "pinned" / "color"
+    return notes.map((note) => ({
+      pinned: false,
+      color: null,
+      createdAt: note.lastUpdated,
+      ...note,
+    }));
+  } catch (e) {
+    return [];
+  }
 }
 
-function saveNote(title, content) {
-  const notes = getNotes();
-
-  notes.push({
-    id: getNextId(),
-    title,
-    content,
-    lastUpdated: new Date().getTime(),
-  });
-
+function setNotes(notes) {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(notes));
 }
 
-function updateNote(id, title, content) {
+function getNote(id) {
+  return getNotes().find((note) => note.id === id) || null;
+}
+
+function saveNote(title, content, extra = {}) {
+  const notes = getNotes();
+  const now = new Date().getTime();
+
+  const note = {
+    id: getNextId(),
+    title,
+    content,
+    pinned: false,
+    color: null,
+    createdAt: now,
+    lastUpdated: now,
+    ...extra,
+  };
+
+  notes.push(note);
+  setNotes(notes);
+
+  return note;
+}
+
+// changes: { title, content, pinned, color }
+// touch = false -> Datum bleibt gleich (z.B. beim Anheften)
+function updateNote(id, changes, touch = true) {
   const notes = getNotes();
 
   const updatedNotes = notes.map((note) => {
     if (note.id === id) {
       return {
         ...note,
-        title,
-        content,
-        lastUpdated: new Date().getTime(),
+        ...changes,
+        lastUpdated: touch ? new Date().getTime() : note.lastUpdated,
       };
     }
     return note;
   });
 
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedNotes));
+  setNotes(updatedNotes);
+}
+
+function restoreNote(note) {
+  const notes = getNotes();
+  // falls die ID inzwischen neu vergeben wurde, eine freie nehmen
+  if (notes.some((n) => n.id === note.id)) {
+    note = { ...note, id: getNextId() };
+  }
+  notes.push(note);
+  setNotes(notes);
+  return note;
 }
 
 function getNextId() {
@@ -58,5 +97,5 @@ function deleteNote(id) {
 
   const filteredNotes = notes.filter((note) => note.id !== id);
 
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filteredNotes));
+  setNotes(filteredNotes);
 }
